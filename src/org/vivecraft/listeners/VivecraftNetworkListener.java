@@ -98,31 +98,57 @@ public class VivecraftNetworkListener implements PluginMessageListener {
 					sender.sendPluginMessage(vse, vse.CHANNEL, new byte[]{(byte) PacketDiscriminators.REQUESTDATA.ordinal()});
 
 				if(vse.getConfig().getBoolean("climbey.enabled") == true){
+					if (version.contains("1.13.2")) { // new climbing packet
+						final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 
-					final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+						byteArrayOutputStream.write(PacketDiscriminators.CLIMBING.ordinal());
+						byteArrayOutputStream.write(1); // climbey allowed
 
-					byteArrayOutputStream.write(PacketDiscriminators.CLIMBING.ordinal());
+						String mode = vse.getConfig().getString("climbey.blockmode","none");
+						if(!sender.hasPermission(vse.getConfig().getString("permissions.climbperm"))){
+							if(mode.trim().equalsIgnoreCase("include"))
+								byteArrayOutputStream.write(1);
+							else if(mode.trim().equalsIgnoreCase("exclude"))
+								byteArrayOutputStream.write(2);
+							else
+								byteArrayOutputStream.write(0);
+						} else {
+							byteArrayOutputStream.write(0);
+						}
 
-					final ObjectOutputStream objectOutputStream =
-							new ObjectOutputStream(byteArrayOutputStream);
-					String mode = vse.getConfig().getString("climbey.blockmode","none");
-					byte m = 0;
-					if(!sender.hasPermission(vse.getConfig().getString("permissions.climbperm"))){
-						if(mode.trim().equalsIgnoreCase("include"))
-							m = 1;
-						else if(mode.trim().equalsIgnoreCase("exclude"))
-							m = 2;
-					} else {
+						for (String block : vse.blocklist) {
+							if (!writeString(byteArrayOutputStream, block))
+								vse.getLogger().warning("Block name too long: " + block);
+						}
+
+						final byte[] p = byteArrayOutputStream.toByteArray();
+						sender.sendPluginMessage(vse, vse.CHANNEL, p);
+					} else { // old climbing packet
+						final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+
+						byteArrayOutputStream.write(PacketDiscriminators.CLIMBING.ordinal());
+
+						final ObjectOutputStream objectOutputStream =
+								new ObjectOutputStream(byteArrayOutputStream);
+						String mode = vse.getConfig().getString("climbey.blockmode", "none");
+						byte m = 0;
+						if (!sender.hasPermission(vse.getConfig().getString("permissions.climbperm"))) {
+							if (mode.trim().equalsIgnoreCase("include"))
+								m = 1;
+							else if (mode.trim().equalsIgnoreCase("exclude"))
+								m = 2;
+						} else {
+						}
+						objectOutputStream.writeByte(m);
+						objectOutputStream.writeObject(vse.blocklist);
+						objectOutputStream.flush();
+
+						final byte[] p = byteArrayOutputStream.toByteArray();
+
+						sender.sendPluginMessage(vse, vse.CHANNEL, p);
+
+						objectOutputStream.close();
 					}
-					objectOutputStream.writeByte(m);
-					objectOutputStream.writeObject(vse.blocklist);
-					objectOutputStream.flush();
-
-					final byte[] p = byteArrayOutputStream.toByteArray();
-
-					sender.sendPluginMessage(vse, vse.CHANNEL, p);
-
-					objectOutputStream.close();
 
 				}
 
@@ -155,24 +181,50 @@ public class VivecraftNetworkListener implements PluginMessageListener {
 			break;
 		}
 	}
-	
-	
+
+
 	public static byte[] StringToPayload(PacketDiscriminators version, String input){
 		ByteArrayOutputStream output = new ByteArrayOutputStream();
-		byte[] bytes = input.getBytes(Charsets.UTF_8);
-		int len = bytes.length;
-		if( len > 255) return output.toByteArray();
-		try {
-			output.write((byte)version.ordinal());
-			output.write((byte) len);
-			//TODO: check endianness.
-			output.write(bytes);
-		} catch (IOException e) {
+
+		output.write((byte)version.ordinal());
+		if(!writeString(output, input)) {
+			output.reset();
+			return output.toByteArray();
 		}
 
 		return output.toByteArray();
-		
-	}
-	
 
+	}
+
+	public static boolean writeString(ByteArrayOutputStream output, String str) {
+		byte[] bytes = str.getBytes(Charsets.UTF_8);
+		int len = bytes.length;
+		try {
+			if(!writeVarInt(output, len, 2))
+				return false;
+			output.write(bytes);
+		} catch (IOException e) {
+			return false;
+		}
+
+		return true;
+	}
+
+	public static int varIntByteCount(int toCount)
+	{
+		return (toCount & 0xFFFFFF80) == 0 ? 1 : ((toCount & 0xFFFFC000) == 0 ? 2 : ((toCount & 0xFFE00000) == 0 ? 3 : ((toCount & 0xF0000000) == 0 ? 4 : 5)));
+	}
+
+	public static boolean writeVarInt(ByteArrayOutputStream to, int toWrite, int maxSize)
+	{
+		if (varIntByteCount(toWrite) > maxSize) return false;
+		while ((toWrite & -128) != 0)
+		{
+			to.write(toWrite & 127 | 128);
+			toWrite >>>= 7;
+		}
+
+		to.write(toWrite);
+		return true;
+	}
 }

@@ -132,8 +132,9 @@ public class VSE extends JavaPlugin implements Listener {
 						getLogger().warning("invalid climbey item " + string);
 						continue;
 					}
-					
-					if(data != null && !tryParseInt(data)){
+
+					// no validation for cross-compatibility
+					/*if(data != null && !tryParseInt(data)){
 						getLogger().warning("invalid climbey item data " + string);
 						continue;
 					}
@@ -148,7 +149,7 @@ public class VSE extends JavaPlugin implements Listener {
 					if(test == null){
 						getLogger().warning("unknown climbey item id " + string);
 						continue;
-					}
+					}*/
 					
 					String f = id + ((data != null)?":"+data:"");
 					

@@ -32,3 +32,4 @@ build/
 # Misc project things
 setup/
 lib/
+*.iml
