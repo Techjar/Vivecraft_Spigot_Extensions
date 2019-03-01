@@ -1,5 +1,13 @@
 package org.vivecraft.listeners;
 
+import com.google.common.base.Charsets;
+import net.minecraft.server.v1_12_R1.EntityPlayer;
+import org.bukkit.craftbukkit.v1_12_R1.entity.CraftPlayer;
+import org.bukkit.entity.Player;
+import org.bukkit.plugin.messaging.PluginMessageListener;
+import org.vivecraft.VSE;
+import org.vivecraft.VivePlayer;
+
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -9,20 +17,10 @@ import java.io.InputStreamReader;
 import java.io.ObjectOutputStream;
 import java.util.Arrays;
 
-import org.bukkit.craftbukkit.v1_12_R1.entity.CraftPlayer;
-import org.bukkit.entity.Player;
-import org.bukkit.plugin.messaging.PluginMessageListener;
-import org.vivecraft.VSE;
-import org.vivecraft.VivePlayer;
-
-import com.google.common.base.Charsets;
-
-import net.minecraft.server.v1_12_R1.EntityPlayer;
-
-public class VivecraftNetworkListener implements PluginMessageListener {
+public class Vivecraft113NetworkListener implements PluginMessageListener {
 	public VSE vse;
-		
-	public VivecraftNetworkListener(VSE vse){
+
+	public Vivecraft113NetworkListener(VSE vse){
 		this.vse = vse;
 	}
 	
@@ -42,7 +40,7 @@ public class VivecraftNetworkListener implements PluginMessageListener {
 	
 	@Override
 	public void onPluginMessageReceived(String channel, Player sender, byte[] payload) {
-		if(!channel.equalsIgnoreCase(vse.CHANNEL)) return;
+		if(!channel.equalsIgnoreCase(vse.CHANNEL_113)) return;
 		if(payload.length==0) return;
 
 		VivePlayer vp = VSE.vivePlayers.get(sender.getUniqueId());
@@ -79,9 +77,9 @@ public class VivecraftNetworkListener implements PluginMessageListener {
 			InputStreamReader is = new InputStreamReader(da);
 			BufferedReader br = new BufferedReader(is);
 			VSE.vivePlayers.put(sender.getUniqueId(), vp);
-			VSE.vive113Players.remove(sender.getUniqueId()); // insurance
+			VSE.vive113Players.add(sender.getUniqueId());
 
-			sender.sendPluginMessage(vse, vse.CHANNEL, StringToPayload(PacketDiscriminators.VERSION, vse.getDescription().getFullName()));
+			sender.sendPluginMessage(vse, vse.CHANNEL_113, StringToPayload(PacketDiscriminators.VERSION, vse.getDescription().getFullName()));
 
 			try {
 				String version = br.readLine();
@@ -96,37 +94,36 @@ public class VivecraftNetworkListener implements PluginMessageListener {
 				}
 
 				if(vse.getConfig().getBoolean("SendPlayerData.enabled") == true)
-					sender.sendPluginMessage(vse, vse.CHANNEL, new byte[]{(byte) PacketDiscriminators.REQUESTDATA.ordinal()});
+					sender.sendPluginMessage(vse, vse.CHANNEL_113, new byte[]{(byte) PacketDiscriminators.REQUESTDATA.ordinal()});
 
 				if(vse.getConfig().getBoolean("climbey.enabled") == true){
 					final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 
 					byteArrayOutputStream.write(PacketDiscriminators.CLIMBING.ordinal());
+					byteArrayOutputStream.write(1); // climbey allowed
 
-					final ObjectOutputStream objectOutputStream =
-							new ObjectOutputStream(byteArrayOutputStream);
-					String mode = vse.getConfig().getString("climbey.blockmode", "none");
-					byte m = 0;
-					if (!sender.hasPermission(vse.getConfig().getString("permissions.climbperm"))) {
-						if (mode.trim().equalsIgnoreCase("include"))
-							m = 1;
-						else if (mode.trim().equalsIgnoreCase("exclude"))
-							m = 2;
+					String mode = vse.getConfig().getString("climbey.blockmode","none");
+					if(!sender.hasPermission(vse.getConfig().getString("permissions.climbperm"))){
+						if(mode.trim().equalsIgnoreCase("include"))
+							byteArrayOutputStream.write(1);
+						else if(mode.trim().equalsIgnoreCase("exclude"))
+							byteArrayOutputStream.write(2);
+						else
+							byteArrayOutputStream.write(0);
 					} else {
+						byteArrayOutputStream.write(0);
 					}
-					objectOutputStream.writeByte(m);
-					objectOutputStream.writeObject(vse.blocklist);
-					objectOutputStream.flush();
+
+					for (String block : vse.blocklist) {
+						if (!writeString(byteArrayOutputStream, block))
+							vse.getLogger().warning("Block name too long: " + block);
+					}
 
 					final byte[] p = byteArrayOutputStream.toByteArray();
-
-					sender.sendPluginMessage(vse, vse.CHANNEL, p);
-
-					objectOutputStream.close();
-
+					sender.sendPluginMessage(vse, vse.CHANNEL_113, p);
 				}
 
-				sender.sendPluginMessage(vse, vse.CHANNEL, new byte[]{(byte) PacketDiscriminators.TELEPORT.ordinal()});
+				sender.sendPluginMessage(vse, vse.CHANNEL_113, new byte[]{(byte) PacketDiscriminators.TELEPORT.ordinal()});
 
 			} catch (IOException e) {
 				e.printStackTrace();

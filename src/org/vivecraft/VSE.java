@@ -8,9 +8,11 @@ import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
@@ -52,6 +54,7 @@ import org.vivecraft.command.ConstructTabCompleter;
 import org.vivecraft.command.ViveCommand;
 import org.vivecraft.entities.CustomGoalSwell;
 import org.vivecraft.entities.CustomPathFinderGoalPlayerWhoLookedAtTarget;
+import org.vivecraft.listeners.Vivecraft113NetworkListener;
 import org.vivecraft.listeners.VivecraftCombatListener;
 import org.vivecraft.listeners.VivecraftItemListener;
 import org.vivecraft.listeners.VivecraftNetworkListener;
@@ -61,8 +64,10 @@ public class VSE extends JavaPlugin implements Listener {
 	FileConfiguration config = getConfig();
 
 	public final String CHANNEL = "Vivecraft";
+	public final String CHANNEL_113 = "vivecraft:data";
 
 	public static Map<UUID, VivePlayer> vivePlayers = new HashMap<UUID, VivePlayer>();
+	public static Set<UUID> vive113Players = new HashSet<>();
 	public static VSE me;
 	
 	int task = 0;
@@ -168,6 +173,8 @@ public class VSE extends JavaPlugin implements Listener {
 
 		getServer().getMessenger().registerIncomingPluginChannel(this, CHANNEL, new VivecraftNetworkListener(this));
 		getServer().getMessenger().registerOutgoingPluginChannel(this, CHANNEL);
+		getServer().getMessenger().registerIncomingPluginChannel(this, CHANNEL_113, new Vivecraft113NetworkListener(this));
+		getServer().getMessenger().registerOutgoingPluginChannel(this, CHANNEL_113);
 		
 		getServer().getPluginManager().registerEvents(this, this);
 		getServer().getPluginManager().registerEvents(new VivecraftCombatListener(this), this);
@@ -303,7 +310,7 @@ public class VSE extends JavaPlugin implements Listener {
 					double d = sendTo.player.getLocation().distanceSquared(v.player.getLocation());
 	
 					if (d < 256 * 256) {
-						sendTo.player.sendPluginMessage(this, CHANNEL, v.getUberPacket());
+						sendTo.player.sendPluginMessage(this, vive113Players.contains(sendTo.player.getUniqueId()) ? CHANNEL_113 : CHANNEL, v.getUberPacket());
 				}
 			}
 		}
@@ -318,6 +325,7 @@ public class VSE extends JavaPlugin implements Listener {
 	@EventHandler
 	public void onPlayerQuit(PlayerQuitEvent event) {
 		vivePlayers.remove(event.getPlayer().getUniqueId());
+		vive113Players.remove(event.getPlayer().getUniqueId());
 		
 		if(getConfig().getBoolean("welcomemsg.enabled"))
 			broadcastConfigString("welcomemsg.leaveMessage", event.getPlayer().getDisplayName());
